@@ -1,0 +1,2162 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#041f15">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>CRUD • Table-Side Referee & Party Voice Controller</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        felt: {
+                            950: '#031911',
+                            900: '#062b1e',
+                            800: '#0a4430',
+                            700: '#0f6145',
+                            600: '#15825d',
+                        },
+                        brass: {
+                            300: '#fde68a',
+                            400: '#fcd34d',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        html, body {
+            font-family: 'Inter', sans-serif;
+            background-color: #031911;
+            color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: contain;
+        }
+        .bg-felt-pattern {
+            background-color: #031911;
+            background-image:
+                radial-gradient(rgba(21, 130, 93, 0.16) 1px, transparent 0),
+                radial-gradient(rgba(245, 158, 11, 0.05) 1px, transparent 0);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+        .btn-press {
+            transition: transform 0.08s ease, filter 0.12s ease;
+            touch-action: manipulation;
+            user-select: none;
+        }
+        .btn-press:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+        /* Custom subtle scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(3, 25, 17, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #0f6145;
+            border-radius: 9999px;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.9; }
+            70% { transform: scale(1.35); opacity: 0; }
+            100% { transform: scale(1.35); opacity: 0; }
+        }
+        .animate-ping-slow {
+            animation: pulse-ring 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-felt-pattern min-h-dvh flex flex-col justify-between selection:bg-brass-500 selection:text-felt-950">
+
+    <!-- =====================================================================
+         TOP STICKY UTILITY BAR (RESPONSIVE 2-ROW MOBILE SAFE-AREA HEADER)
+         ===================================================================== -->
+    <header class="sticky top-0 z-30 bg-felt-950/95 backdrop-blur-md border-b border-felt-800 px-3 pt-[max(0.6rem,env(safe-area-inset-top))] pb-2.5 shadow-xl">
+        <div class="max-w-3xl mx-auto space-y-2">
+            <!-- Row 1: Brand Badge + Full Title on Left, Match Clock & Setup on Right -->
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brass-400 to-brass-600 text-felt-950 flex items-center justify-center shadow-md shrink-0 border border-brass-300">
+                        <!-- Custom 8-Ball SVG -->
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="12" r="10" fill="#031911"/>
+                            <circle cx="12" cy="12" r="4.5" fill="#f8fafc"/>
+                            <text x="12" y="14.2" text-anchor="middle" font-size="6.8" font-weight="900" font-family="Inter, sans-serif" fill="#031911">8</text>
+                        </svg>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                            <span class="font-black text-base tracking-tight text-white shrink-0">CRUD REF</span>
+                            <span id="headerModBadge" class="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-felt-800 text-brass-400 border border-felt-700 truncate">
+                                Standard
+                            </span>
+                        </div>
+                        <p id="headerRulesText" class="text-[11px] font-semibold text-emerald-300/80 truncate">
+                            Gentleman's • Sides Closed
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Top-Right Timer & Setup Button -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="toggleMatchClock()" class="h-9 px-2.5 rounded-xl bg-felt-900 border border-felt-700 text-xs font-mono font-bold text-emerald-300 flex items-center gap-1.5 btn-press" title="Pause / Resume Match Clock">
+                        <span id="clockPlayIndicator" class="w-2 h-2 rounded-full bg-brass-400"></span>
+                        <span id="matchClockText">00:00</span>
+                    </button>
+
+                    <button onclick="openSetupModal()" class="h-9 px-3 rounded-xl bg-brass-500 hover:bg-brass-400 text-felt-950 font-black text-xs flex items-center gap-1.5 shadow-md btn-press" title="Players, Modifiers & Rules">
+                        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+                            <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+                            <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+                            <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+                        </svg>
+                        <span>Setup</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Row 2: Compact Evenly-Spaced Hardware & Utility Strip -->
+            <div class="grid grid-cols-4 gap-1.5">
+                <!-- Mic / Voice Drawer Toggle -->
+                <button onclick="toggleAudioPanel()" id="headerMicBtn" class="min-w-0 h-8 px-2 rounded-xl bg-felt-900 border border-felt-700 text-slate-200 hover:text-white flex items-center justify-center gap-1.5 btn-press" title="Party Voice & Table-Slap Control">
+                    <svg id="headerMicSvg" class="w-3.5 h-3.5 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="22"/>
+                    </svg>
+                    <span class="text-[11px] font-extrabold truncate">Voice</span>
+                    <span id="headerMicDot" class="hidden w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0"></span>
+                </button>
+
+                <!-- Wake Lock Toggle -->
+                <button onclick="toggleWakeLock()" id="wakeLockBtn" class="min-w-0 h-8 px-2 rounded-xl bg-felt-900 border border-felt-700 text-slate-300 flex items-center justify-center gap-1.5 btn-press" title="Keep Screen Awake">
+                    <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="4"/>
+                        <path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+                    </svg>
+                    <span class="text-[11px] font-extrabold truncate">Awake</span>
+                </button>
+
+                <!-- Sound Effects Mute Toggle -->
+                <button onclick="toggleSfx()" id="sfxBtn" class="min-w-0 h-8 px-2 rounded-xl bg-felt-900 border border-felt-700 text-brass-400 flex items-center justify-center gap-1.5 btn-press" title="Toggle Sound Effects">
+                    <svg id="sfxOnIcon" class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                    </svg>
+                    <svg id="sfxOffIcon" class="w-3.5 h-3.5 hidden text-slate-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <line x1="23" y1="9" x2="17" y2="15"/>
+                        <line x1="17" y1="9" x2="23" y2="15"/>
+                    </svg>
+                    <span class="text-[11px] font-extrabold truncate">Audio FX</span>
+                </button>
+
+                <!-- Event Log Button -->
+                <button onclick="openLogModal()" class="relative min-w-0 h-8 px-2 rounded-xl bg-felt-900 border border-felt-700 text-slate-200 flex items-center justify-center gap-1.5 btn-press" title="Referee Call Log">
+                    <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                    <span class="text-[11px] font-extrabold truncate">Log</span>
+                    <span id="logCountBadge" class="hidden min-w-[16px] h-4 px-1 rounded-full bg-brass-500 text-felt-950 font-black text-[10px] flex items-center justify-center shrink-0">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- =====================================================================
+         NOISE-RESISTANT PARTY VOICE & TABLE-SLAP HUD PANEL
+         ===================================================================== -->
+    <section id="partyAudioHud" class="bg-felt-900/95 border-b border-felt-700 px-3 py-2.5 shadow-lg">
+        <div class="max-w-3xl mx-auto space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <button onclick="togglePartyAudioEngine()" id="masterAudioToggleBtn" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-felt-950 font-black text-xs flex items-center gap-1.5 shadow btn-press">
+                        <span id="micLiveDot" class="w-2 h-2 rounded-full bg-felt-950"></span>
+                        <span id="masterAudioBtnText">Enable Party Voice</span>
+                    </button>
+                    <button onclick="toggleAudioSettingsDrawer()" class="px-2.5 py-1.5 rounded-xl bg-felt-950 border border-felt-700 text-emerald-300 text-[11px] font-bold flex items-center gap-1 btn-press">
+                        <span>Noise Filter</span>
+                        <svg id="audioChevron" class="w-3.5 h-3.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                </div>
+
+                <!-- Live Acoustic Spike Meter -->
+                <div class="flex items-center gap-2 flex-1 min-w-[120px] max-w-[200px]">
+                    <span class="text-[10px] font-mono font-bold uppercase text-slate-400 shrink-0">LVL</span>
+                    <div class="flex-1 h-2.5 bg-felt-950 rounded-full overflow-hidden border border-felt-800 relative">
+                        <div id="audioLevelBar" class="h-full w-0 bg-gradient-to-r from-emerald-500 via-brass-400 to-rose-500 transition-all duration-75"></div>
+                        <div id="clapThresholdMarker" class="absolute top-0 bottom-0 w-0.5 bg-white/80" style="left: 78%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Line & Last Heard -->
+            <div class="flex items-center justify-between gap-2 text-[11px] bg-felt-950/80 border border-felt-800/90 rounded-xl px-2.5 py-1.5">
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span id="wakeWordStatusPill" class="shrink-0 px-1.5 py-0.5 rounded bg-amber-500/20 text-brass-400 border border-brass-500/40 font-mono font-extrabold text-[10px]">
+                        WAKE: "CRUD ..."
+                    </span>
+                    <span id="voiceStatusText" class="text-slate-300 truncate">
+                        Tap button to use hands-free Voice ("Crud Hit", etc.)
+                    </span>
+                </div>
+                <span id="clapActiveTag" class="shrink-0 font-mono text-[10px] font-bold text-slate-500">
+                    SLAP=HIT: OFF
+                </span>
+            </div>
+
+            <!-- Collapsible Party Noise & Sensitivity Controls -->
+            <div id="audioSettingsDrawer" class="hidden pt-1 border-t border-felt-800 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <!-- Wake Word Toggle -->
+                <div class="bg-felt-950 p-2.5 rounded-xl border border-felt-800 flex items-center justify-between gap-2">
+                    <div>
+                        <div class="font-extrabold text-white text-xs">Require "CRUD" Wake Word</div>
+                        <div class="text-[10px] text-slate-400">Ignores speech unless prefixed by "Crud"</div>
+                    </div>
+                    <button onclick="toggleWakeWordMode()" id="wakeWordToggleBtn" class="px-2.5 py-1.5 rounded-lg bg-brass-500 text-felt-950 font-black text-[11px] btn-press">
+                        ON (Safe)
+                    </button>
+                </div>
+
+                <!-- Table-Slap / Clap Trigger Toggle & Sensitivity -->
+                <div class="bg-felt-950 p-2.5 rounded-xl border border-felt-800 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="font-extrabold text-white text-xs">Table-Slap / Clap = HIT</div>
+                            <div class="text-[10px] text-slate-400">Percussive rail slap advances turn</div>
+                        </div>
+                        <button onclick="toggleClapMode()" id="clapToggleBtn" class="px-2.5 py-1 rounded-lg bg-felt-800 text-slate-400 font-black text-[11px] btn-press">
+                            OFF
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-slate-400 font-bold">Threshold:</span>
+                        <input type="range" id="clapSensitivitySlider" min="35" max="95" value="78" oninput="updateClapSensitivity(this.value)" class="flex-1 accent-brass-400 h-1.5 bg-felt-800 rounded-lg cursor-pointer">
+                        <span id="clapSensitivityLabel" class="text-[10px] font-mono font-bold text-brass-400 w-7 text-right">78%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Line & Last Heard -->
+            <div class="flex items-center justify-between gap-2 text-[11px] bg-felt-950/80 border border-felt-800/90 rounded-xl px-2.5 py-1.5">
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span id="wakeWordStatusPill" class="shrink-0 px-1.5 py-0.5 rounded bg-amber-500/20 text-brass-400 border border-brass-500/40 font-mono font-extrabold text-[10px]">
+                        WAKE: "CRUD ..."
+                    </span>
+                    <span id="voiceStatusText" class="text-slate-300 truncate">
+                        Tap button to use hands-free Voice or Table-Slap
+                    </span>
+                </div>
+                <span id="clapActiveTag" class="shrink-0 font-mono text-[10px] font-bold text-emerald-400">
+                    SLAP=HIT: ON
+                </span>
+            </div>
+
+            <!-- Collapsible Party Noise & Sensitivity Controls -->
+            <div id="audioSettingsDrawer" class="hidden pt-1 border-t border-felt-800 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <!-- Wake Word Toggle -->
+                <div class="bg-felt-950 p-2.5 rounded-xl border border-felt-800 flex items-center justify-between gap-2">
+                    <div>
+                        <div class="font-extrabold text-white text-xs">Require "CRUD" Wake Word</div>
+                        <div class="text-[10px] text-slate-400">Prevents random party chat triggers</div>
+                    </div>
+                    <button onclick="toggleWakeWordMode()" id="wakeWordToggleBtn" class="px-2.5 py-1.5 rounded-lg bg-brass-500 text-felt-950 font-black text-[11px] btn-press">
+                        ON (Safe)
+                    </button>
+                </div>
+
+                <!-- Table-Slap / Clap Trigger Toggle & Sensitivity -->
+                <div class="bg-felt-950 p-2.5 rounded-xl border border-felt-800 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="font-extrabold text-white text-xs">Table-Slap / Clap = HIT</div>
+                            <div class="text-[10px] text-slate-400">Slap table rail to advance turn</div>
+                        </div>
+                        <button onclick="toggleClapMode()" id="clapToggleBtn" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-felt-950 font-black text-[11px] btn-press">
+                            ON
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-slate-400 font-bold">Threshold:</span>
+                        <input type="range" id="clapSensitivitySlider" min="25" max="95" value="65" oninput="updateClapSensitivity(this.value)" class="flex-1 accent-brass-400 h-1.5 bg-felt-800 rounded-lg cursor-pointer">
+                        <span id="clapSensitivityLabel" class="text-[10px] font-mono font-bold text-brass-400 w-7 text-right">65%</span>
+                    </div>
+                </div>
+
+                <!-- Command Cheat Sheet -->
+                <div class="sm:col-span-2 bg-felt-950/90 px-3 py-2 rounded-xl border border-felt-800 text-[11px] text-slate-300 flex flex-wrap gap-x-3 gap-y-1">
+                    <span class="font-black text-brass-400">Voice Commands:</span>
+                    <span><strong class="text-white">"Crud Hit"</strong> (Next Turn)</span>
+                    <span><strong class="text-rose-400">"Crud Dead"</strong> (-1 Shooter)</span>
+                    <span><strong class="text-amber-400">"Crud Pot"</strong> (-1 On Deck)</span>
+                    <span><strong class="text-orange-400">"Crud Foul"</strong> (-1 Shooter)</span>
+                    <span><strong class="text-sky-400">"Crud Miss"</strong> (Strike)</span>
+                    <span><strong class="text-emerald-400">"Crud Undo"</strong></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- =====================================================================
+         MAIN SCROLLABLE GAME CONTROLLER WORKSPACE
+         ===================================================================== -->
+    <main class="flex-1 w-full max-w-3xl mx-auto px-3 py-3 space-y-3 pb-10">
+
+        <!-- 1. PHASE HEADER, BLITZ SHOT CLOCK, NEW SERVE & UNDO -->
+        <section class="bg-felt-900/95 border-2 border-brass-500/70 rounded-2xl p-3 sm:p-4 shadow-2xl space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <span id="phaseBadge" class="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-brass-500 text-felt-950 shadow-sm">
+                        SERVE PHASE
+                    </span>
+                    <span id="blitzClockPill" class="hidden px-2.5 py-1 rounded-lg text-xs font-mono font-black bg-rose-950 text-rose-300 border border-rose-600">
+                        12.0s
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <button onclick="manualNewServe()" class="px-2.5 py-1.5 rounded-xl bg-felt-800 hover:bg-felt-700 text-emerald-200 border border-felt-600 text-xs font-extrabold flex items-center gap-1.5 btn-press">
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        <span>Reset Serve</span>
+                    </button>
+                    <button id="undoBtn" onclick="undoLastAction()" disabled class="px-2.5 py-1.5 rounded-xl bg-slate-800 disabled:opacity-40 text-amber-300 border border-amber-500/40 text-xs font-extrabold flex items-center gap-1.5 btn-press">
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                        <span>Undo</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ACTIVE SHOOTER & ON DECK CARDS -->
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <!-- SHOOTING NOW -->
+                <div class="sm:col-span-7 bg-felt-950 border-2 border-brass-400 rounded-xl p-3 flex flex-col justify-between shadow-inner">
+                    <div class="flex items-center justify-between gap-2">
+                        <span id="shootingRoleLabel" class="text-[11px] font-black uppercase tracking-wider text-brass-400 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-brass-400 animate-ping"></span>
+                            SERVING NOW
+                        </span>
+                        <span id="activeShooterLivesBadge" class="text-xs font-extrabold text-emerald-300">
+                            3 Lives
+                        </span>
+                    </div>
+
+                    <div class="my-1.5 flex items-center justify-between gap-2">
+                        <h1 id="activeShooterName" class="text-2xl sm:text-3xl font-black text-white tracking-tight truncate">
+                            --
+                        </h1>
+                        <span id="activeShooterTeamPill" class="hidden shrink-0 px-2 py-0.5 rounded text-[10px] font-black uppercase"></span>
+                    </div>
+
+                    <!-- Visual Life Pips -->
+                    <div id="activeShooterPips" class="flex items-center gap-1 flex-wrap mt-0.5"></div>
+                </div>
+
+                <!-- ON DECK (NEXT IN LINE) -->
+                <div class="sm:col-span-5 bg-felt-950/70 border border-felt-700 rounded-xl p-3 flex flex-col justify-between">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-sky-300">
+                            ON DECK (NEXT)
+                        </span>
+                        <span id="nextDefenderLivesBadge" class="text-xs font-bold text-slate-400">
+                            3 Lives
+                        </span>
+                    </div>
+
+                    <div class="my-1.5 flex items-center justify-between gap-2">
+                        <h2 id="nextDefenderName" class="text-xl font-extrabold text-sky-200 tracking-tight truncate">
+                            --
+                        </h2>
+                        <span id="nextDefenderTeamPill" class="hidden shrink-0 px-1.5 py-0.5 rounded text-[10px] font-black uppercase"></span>
+                    </div>
+
+                    <p id="nextDefenderRuleHint" class="text-[11px] text-slate-400 leading-snug">
+                        Grabs cue ball on hit. Loses life if potted on!
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. MASSIVE PRIMARY ACTION: HIT / NEXT TURN -->
+        <section>
+            <button onclick="handleHitNextTurn()" id="hitPrimaryBtn" class="w-full py-4 sm:py-5 px-4 rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 hover:from-emerald-300 hover:to-emerald-500 text-felt-950 border-2 border-emerald-200 shadow-[0_6px_0_#064e3b] active:shadow-[0_2px_0_#064e3b] active:translate-y-1 transition-all flex items-center justify-center gap-3.5">
+                <div class="w-11 h-11 rounded-full bg-felt-950/15 flex items-center justify-center shrink-0">
+                    <svg class="w-7 h-7 text-felt-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="4"/>
+                    </svg>
+                </div>
+                <div class="text-left">
+                    <div class="text-xl sm:text-2xl font-black tracking-tight leading-none">HIT / NEXT TURN</div>
+                    <div id="hitBtnSubtext" class="text-xs font-extrabold text-felt-950/80 mt-1">
+                        Object ball hit — Pass turn to On Deck
+                    </div>
+                </div>
+            </button>
+        </section>
+
+        <!-- 3. FOUR TACTILE PENALTY & SERVE STRIKE BUTTONS -->
+        <section class="grid grid-cols-2 gap-2.5">
+            <!-- DEAD BALL -->
+            <button onclick="handleDeadBall()" class="p-3.5 rounded-2xl bg-rose-950/90 hover:bg-rose-900 border-2 border-rose-600/80 text-left flex flex-col justify-between gap-2 shadow-md btn-press">
+                <div class="flex items-center justify-between w-full">
+                    <span class="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center font-black text-xs">
+                        STOP
+                    </span>
+                    <span class="text-[10px] font-black px-2 py-0.5 rounded bg-rose-900 text-rose-200 border border-rose-700">
+                        -1 SHOOTER
+                    </span>
+                </div>
+                <div>
+                    <div class="font-black text-base text-white leading-tight">DEAD BALL</div>
+                    <div class="text-[11px] text-rose-300 mt-0.5 leading-tight">Ball stopped moving/spinning</div>
+                </div>
+            </button>
+
+            <!-- POTTED ON YOU -->
+            <button onclick="handlePottedOnNext()" class="p-3.5 rounded-2xl bg-amber-950/90 hover:bg-amber-900 border-2 border-amber-500/80 text-left flex flex-col justify-between gap-2 shadow-md btn-press">
+                <div class="flex items-center justify-between w-full">
+                    <span class="w-7 h-7 rounded-lg bg-amber-500 text-felt-950 flex items-center justify-center font-black text-xs">
+                        POT
+                    </span>
+                    <span class="text-[10px] font-black px-2 py-0.5 rounded bg-amber-900 text-amber-200 border border-amber-600">
+                        -1 ON DECK
+                    </span>
+                </div>
+                <div>
+                    <div class="font-black text-base text-white leading-tight">POTTED ON YOU</div>
+                    <div class="text-[11px] text-amber-200 mt-0.5 leading-tight">Legal pocket penalizes next</div>
+                </div>
+            </button>
+
+            <!-- FOUL / RAIL -->
+            <button onclick="handleFoulShortSide()" class="p-3.5 rounded-2xl bg-orange-950/90 hover:bg-orange-900 border-2 border-orange-600/80 text-left flex flex-col justify-between gap-2 shadow-md btn-press">
+                <div class="flex items-center justify-between w-full">
+                    <span class="w-7 h-7 rounded-lg bg-orange-600 text-white flex items-center justify-center font-black text-xs">
+                        FOUL
+                    </span>
+                    <span class="text-[10px] font-black px-2 py-0.5 rounded bg-orange-900 text-orange-200 border border-orange-700">
+                        -1 SHOOTER
+                    </span>
+                </div>
+                <div>
+                    <div class="font-black text-base text-white leading-tight">FOUL / RAIL</div>
+                    <div id="foulCardSubtext" class="text-[11px] text-orange-200 mt-0.5 leading-tight">Long side / closed pocket</div>
+                </div>
+            </button>
+
+            <!-- MISSED SERVE (3-STRIKE RULE) -->
+            <button onclick="handleMissedServe()" id="missedServeCardBtn" class="p-3.5 rounded-2xl bg-sky-950/90 hover:bg-sky-900 border-2 border-sky-500/80 text-left flex flex-col justify-between gap-2 shadow-md btn-press">
+                <div class="flex items-center justify-between w-full">
+                    <span class="w-7 h-7 rounded-lg bg-sky-500 text-felt-950 flex items-center justify-center font-black text-xs">
+                        MISS
+                    </span>
+                    <span id="serveStrikePill" class="text-[10px] font-black px-2 py-0.5 rounded bg-sky-900 text-sky-200 border border-sky-500">
+                        STRIKE 0 / 3
+                    </span>
+                </div>
+                <div>
+                    <div class="font-black text-base text-white leading-tight">MISSED SERVE</div>
+                    <div class="text-[11px] text-sky-200 mt-0.5 leading-tight">3 strikes = -1 life (same server)</div>
+                </div>
+            </button>
+        </section>
+
+        <!-- 4. TABLE ROTATION & LIVE STANDINGS -->
+        <section class="bg-felt-950/90 border border-felt-800 rounded-2xl p-3.5 shadow-xl space-y-3">
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <h3 class="text-xs font-black uppercase tracking-wider text-emerald-300">
+                        Table Rotation & Lives
+                    </h3>
+                    <span id="aliveCountBadge" class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-felt-800 text-brass-400 border border-felt-700">
+                        4 Alive
+                    </span>
+                </div>
+                <button onclick="openSetupModal()" class="text-xs font-extrabold text-brass-400 hover:text-brass-300 underline">
+                    Edit Players / Shuffle
+                </button>
+            </div>
+
+            <div id="playerCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <!-- Player cards injected via JS -->
+            </div>
+        </section>
+
+        <!-- Subtle GitHub / Rules Footer -->
+        <footer class="text-center pt-1 pb-4">
+            <button onclick="openAboutModal()" class="text-[11px] font-semibold text-slate-400 hover:text-emerald-300 underline">
+                Official Crud Flow Rules & GitHub Pages Hosting Guide
+            </button>
+        </footer>
+    </main>
+
+    <!-- =====================================================================
+         MODAL 1: SETUP, PLAYERS (MAX 20 LIVES), SHUFFLE & MODIFIERS
+         ===================================================================== -->
+    <div id="setupModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-40 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-felt-950 border-2 border-felt-700 rounded-3xl max-w-xl w-full max-h-[92dvh] flex flex-col shadow-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="px-5 py-3.5 bg-felt-900 border-b border-felt-800 flex items-center justify-between shrink-0">
+                <div>
+                    <h2 class="text-base font-black text-white">Table Setup, Modifiers & Roster</h2>
+                    <p class="text-[11px] text-emerald-300/80">Configure lives (up to 20), variants & table order</p>
+                </div>
+                <button onclick="closeSetupModal()" class="w-8 h-8 rounded-xl bg-felt-800 hover:bg-felt-700 text-slate-200 flex items-center justify-center btn-press">
+                    ✕
+                </button>
+            </div>
+
+            <!-- Scrollable Body -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Starting Lives (1-20) & Format -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="bg-felt-900/80 border border-felt-800 p-3 rounded-2xl">
+                        <label class="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-300 mb-2">
+                            Starting Lives (1 – 20)
+                        </label>
+                        <div class="flex items-center justify-between gap-2">
+                            <button onclick="adjustStartingLives(-1)" class="w-10 h-10 rounded-xl bg-felt-800 hover:bg-felt-700 text-white font-black text-xl border border-felt-600 btn-press">-</button>
+                            <span id="setupLivesDisplay" class="text-2xl font-mono font-black text-brass-400">3</span>
+                            <button onclick="adjustStartingLives(1)" class="w-10 h-10 rounded-xl bg-felt-800 hover:bg-felt-700 text-white font-black text-xl border border-felt-600 btn-press">+</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-felt-900/80 border border-felt-800 p-3 rounded-2xl">
+                        <label class="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-300 mb-2">
+                            Match Format
+                        </label>
+                        <div class="grid grid-cols-2 gap-1.5 bg-felt-950 p-1 rounded-xl border border-felt-800">
+                            <button id="formatFfaBtn" onclick="setTeamMode(false)" class="py-2 rounded-lg text-xs font-black bg-brass-500 text-felt-950">
+                                Free-For-All
+                            </button>
+                            <button id="formatTeamBtn" onclick="setTeamMode(true)" class="py-2 rounded-lg text-xs font-black text-slate-300">
+                                Team A vs B
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Game Modifiers & Variants -->
+                <div class="bg-felt-900/80 border border-felt-800 p-3 rounded-2xl space-y-2">
+                    <label class="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-300">
+                        Modifiers & Party Variants
+                    </label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <button onclick="selectModifier('standard')" id="modBtn_standard" class="p-2.5 rounded-xl border text-left btn-press bg-felt-950 border-brass-400 text-white">
+                            <div class="text-xs font-black">Standard Crud</div>
+                            <div class="text-[10px] text-slate-400">Classic 3-strike rules</div>
+                        </button>
+                        <button onclick="selectModifier('suddenDeath')" id="modBtn_suddenDeath" class="p-2.5 rounded-xl border text-left btn-press bg-felt-950 border-felt-700 text-slate-300">
+                            <div class="text-xs font-black">Sudden Death</div>
+                            <div class="text-[10px] text-slate-400">1 life elimination</div>
+                        </button>
+                        <button onclick="selectModifier('shieldLife')" id="modBtn_shieldLife" class="p-2.5 rounded-xl border text-left btn-press bg-felt-950 border-felt-700 text-slate-300">
+                            <div class="text-xs font-black">Shield Life</div>
+                            <div class="text-[10px] text-slate-400">+1 free life-loss block</div>
+                        </button>
+                        <button onclick="selectModifier('blitz')" id="modBtn_blitz" class="p-2.5 rounded-xl border text-left btn-press bg-felt-950 border-felt-700 text-slate-300">
+                            <div class="text-xs font-black">Speed Blitz</div>
+                            <div class="text-[10px] text-slate-400">12s shot clock alarm</div>
+                        </button>
+                        <button onclick="selectModifier('doubleBall')" id="modBtn_doubleBall" class="p-2.5 rounded-xl border text-left btn-press bg-felt-950 border-felt-700 text-slate-300">
+                            <div class="text-xs font-black">Double Ball Chaos</div>
+                            <div class="text-[10px] text-slate-400">2 live object balls</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- House Rules -->
+                <div class="bg-felt-900/80 border border-felt-800 p-3 rounded-2xl space-y-2">
+                    <label class="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-300">
+                        Table House Rules
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button onclick="toggleCombatRule()" class="p-2.5 rounded-xl bg-felt-950 border border-felt-700 flex items-center justify-between text-left btn-press">
+                            <div>
+                                <div id="setupContactTitle" class="text-xs font-extrabold text-white">Gentleman's Crud</div>
+                                <div id="setupContactSub" class="text-[10px] text-slate-400">No physical body blocking</div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded bg-emerald-900 text-emerald-300 text-[9px] font-black">SWITCH</span>
+                        </button>
+                        <button onclick="toggleSidePocketRule()" class="p-2.5 rounded-xl bg-felt-950 border border-felt-700 flex items-center justify-between text-left btn-press">
+                            <div>
+                                <div id="setupPocketTitle" class="text-xs font-extrabold text-white">Side Pockets Closed</div>
+                                <div id="setupPocketSub" class="text-[10px] text-slate-400">Side pocket = Shooter foul</div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded bg-amber-900 text-amber-300 text-[9px] font-black">SWITCH</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Roster Management & Randomizer -->
+                <div class="bg-felt-900/80 border border-felt-800 p-3 rounded-2xl space-y-2.5">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <label class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-300">
+                            Standing Order (<span id="setupPlayerCountText">4</span> Players)
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="shufflePlayerOrder()" class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-brass-500/50 text-brass-300 text-[11px] font-extrabold flex items-center gap-1 btn-press">
+                                <span>🔀 Shuffle Order</span>
+                            </button>
+                            <button type="button" onclick="addSampleFour()" class="text-[11px] font-bold text-emerald-400 hover:underline">
+                                +4 Guests
+                            </button>
+                        </div>
+                    </div>
+
+                    <form onsubmit="submitNewPlayer(event)" class="flex gap-2">
+                        <input type="text" id="playerNameInput" placeholder="Player name..." autocomplete="off"
+                            class="flex-1 bg-felt-950 border border-felt-700 rounded-xl px-3 py-2 text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-brass-400">
+                        <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-felt-950 font-black text-xs btn-press">
+                            + Add
+                        </button>
+                    </form>
+
+                    <div id="setupRosterContainer" class="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                        <!-- Roster rows injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-3.5 bg-felt-900 border-t border-felt-800 shrink-0">
+                <button onclick="startNewMatch()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brass-400 to-brass-600 hover:from-brass-300 hover:to-brass-500 text-felt-950 font-black text-sm shadow-lg btn-press">
+                    START NEW MATCH
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 2: REFEREE EVENT LOG
+         ===================================================================== -->
+    <div id="logModal" class="fixed inset-0 bg-black/80 backdrop-blur-xs z-40 hidden flex items-center justify-center p-3">
+        <div class="bg-felt-950 border-2 border-felt-700 rounded-3xl max-w-md w-full max-h-[82dvh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="px-4 py-3 bg-felt-900 border-b border-felt-800 flex items-center justify-between">
+                <h3 class="font-black text-sm text-white">Match Call & Life Log</h3>
+                <div class="flex items-center gap-2">
+                    <button onclick="clearEventLog()" class="text-xs font-bold text-rose-400 px-2 py-1 rounded bg-rose-950/60 border border-rose-800/60">Clear</button>
+                    <button onclick="closeLogModal()" class="w-8 h-8 rounded-xl bg-felt-800 text-slate-200 flex items-center justify-center">✕</button>
+                </div>
+            </div>
+            <div id="eventLogContainer" class="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-xs">
+                <div class="text-slate-500 italic text-center py-8">No referee calls yet.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 3: OFFICIAL RULES & GITHUB PAGES GUIDE
+         ===================================================================== -->
+    <div id="aboutModal" class="fixed inset-0 bg-black/80 backdrop-blur-xs z-40 hidden flex items-center justify-center p-3">
+        <div class="bg-felt-950 border-2 border-felt-700 rounded-3xl max-w-lg w-full max-h-[85dvh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="px-4 py-3 bg-felt-900 border-b border-felt-800 flex items-center justify-between">
+                <h3 class="font-black text-sm text-white">Crud Rules & GitHub Pages Hosting</h3>
+                <button onclick="closeAboutModal()" class="w-8 h-8 rounded-xl bg-felt-800 text-slate-200 flex items-center justify-center">✕</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-3 text-xs text-slate-300 leading-relaxed">
+                <div class="bg-felt-900/90 border border-felt-800 p-3 rounded-2xl space-y-1.5">
+                    <h4 class="font-black text-brass-400 uppercase tracking-wider text-[11px]">Verified Serve & Turn Rules</h4>
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li><strong>3-Strike Serve Rule:</strong> Missing a serve adds a strike (1/3, 2/3). On the 3rd miss, the server loses 1 life and <strong>keeps serving</strong> until they make a legal hit or are eliminated.</li>
+                        <li><strong>Next Player Serves After Life Loss:</strong> Whenever any player loses a life (Dead Ball, Potted On You, or Foul), the ball resets to <strong>SERVE PHASE</strong> and the <strong>next alive player after the penalized player</strong> becomes the new server.</li>
+                    </ul>
+                </div>
+                <div class="bg-felt-900/90 border border-felt-800 p-3 rounded-2xl space-y-1.5">
+                    <h4 class="font-black text-emerald-400 uppercase tracking-wider text-[11px]">How to Publish on GitHub Pages</h4>
+                    <ol class="list-decimal pl-4 space-y-1">
+                        <li>Create a new public repository on GitHub (e.g., <code class="text-brass-300">crud-referee</code>).</li>
+                        <li>Upload this single HTML file and rename it to <code class="text-brass-300">index.html</code>.</li>
+                        <li>Go to <strong>Settings → Pages</strong>, select the <code class="text-brass-300">main</code> branch, and click <strong>Save</strong>.</li>
+                        <li>GitHub Pages serves over <strong>HTTPS</strong> automatically, which enables Chrome/Safari Microphone & Speech Recognition on mobile phones!</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         VICTORY OVERLAY
+         ===================================================================== -->
+    <div id="victoryModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-gradient-to-b from-felt-900 to-felt-950 border-2 border-brass-400 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-4">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-brass-400 to-brass-600 text-felt-950 text-3xl font-black flex items-center justify-center mx-auto shadow-xl">
+                🏆
+            </div>
+            <div>
+                <span class="px-3 py-1 rounded-full bg-felt-800 text-brass-400 text-[10px] font-black uppercase tracking-widest border border-felt-600">
+                    Table Champion
+                </span>
+                <h2 id="victoryWinnerName" class="text-2xl font-black text-white mt-2">Winner</h2>
+                <p id="victorySubtext" class="text-xs text-emerald-300 mt-1">Last player standing at the table!</p>
+            </div>
+            <div class="bg-felt-950 border border-felt-800 rounded-2xl p-3 grid grid-cols-2 gap-2">
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Match Duration</div>
+                    <div id="victoryDurationStat" class="text-base font-mono font-black text-brass-400">00:00</div>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Total Calls</div>
+                    <div id="victoryCallsStat" class="text-base font-mono font-black text-white">0</div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="closeVictoryModal()" class="flex-1 py-3 rounded-xl bg-felt-800 hover:bg-felt-700 text-white font-extrabold text-xs border border-felt-600 btn-press">
+                    View Board
+                </button>
+                <button onclick="closeVictoryModal(); openSetupModal();" class="flex-1 py-3 rounded-xl bg-brass-500 hover:bg-brass-400 text-felt-950 font-black text-xs btn-press">
+                    New Match
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         TOAST NOTIFICATION PILL
+         ===================================================================== -->
+    <div id="toastContainer" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-200">
+        <div id="toastMessage" class="px-4 py-2 rounded-full bg-felt-950 border-2 border-brass-400 text-white font-extrabold text-xs shadow-2xl whitespace-nowrap">
+            Ready
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         APPLICATION LOGIC (GAME STATE + NOISE-RESISTANT AUDIO/VOICE ENGINE)
+         ===================================================================== -->
+    <script>
+        // ---------------------------------------------------------------------
+        // 1. CORE GAME STATE
+        // ---------------------------------------------------------------------
+        const state = {
+            players: [
+                { id: 'p1', name: 'Alex', lives: 3, maxLives: 3, team: 'A', shield: 0 },
+                { id: 'p2', name: 'Sam', lives: 3, maxLives: 3, team: 'B', shield: 0 },
+                { id: 'p3', name: 'Jordan', lives: 3, maxLives: 3, team: 'A', shield: 0 },
+                { id: 'p4', name: 'Casey', lives: 3, maxLives: 3, team: 'B', shield: 0 }
+            ],
+            currentShooterIndex: 0,
+            phase: 'SERVE', // 'SERVE' | 'RALLY'
+            serveMisses: 0, // 0, 1, 2 -> 3rd strike deducts life & keeps same server
+            startingLives: 3, // 1..20
+            teamMode: false,
+            combatRules: false,
+            sidePocketsClosed: true,
+            modifier: 'standard', // 'standard' | 'suddenDeath' | 'shieldLife' | 'blitz' | 'doubleBall'
+            matchSeconds: 0,
+            isClockRunning: false,
+            blitzTimeLeft: 12.0,
+            logs: [],
+            victoryShown: false
+        };
+
+        let undoStack = [];
+        let clockInterval = null;
+        let blitzInterval = null;
+        let sfxEnabled = true;
+        let wakeLockSentinel = null;
+
+        // ---------------------------------------------------------------------
+        // 2. INITIALIZATION
+        // ---------------------------------------------------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            ensureValidShooterIndex();
+            renderAll();
+            openSetupModal();
+        });
+
+        // ---------------------------------------------------------------------
+        // 3. TURN & INDEX HELPERS (EXACT CRUD FLOW)
+        // ---------------------------------------------------------------------
+        function getAlivePlayers() {
+            return state.players.filter(p => p.lives > 0);
+        }
+
+        function ensureValidShooterIndex() {
+            if (state.players.length === 0) {
+                state.currentShooterIndex = 0;
+                return null;
+            }
+            if (state.currentShooterIndex < 0 || state.currentShooterIndex >= state.players.length) {
+                state.currentShooterIndex = 0;
+            }
+            if (state.players[state.currentShooterIndex].lives <= 0) {
+                const nextIdx = findNextAliveIndexFrom(state.currentShooterIndex);
+                if (nextIdx !== -1) state.currentShooterIndex = nextIdx;
+            }
+            return state.players[state.currentShooterIndex] || null;
+        }
+
+        /**
+         * Finds the next alive player index strictly after `fromIndex` in table order.
+         * Supports Team A vs Team B alternating order when teamMode is active.
+         */
+        function findNextAliveIndexFrom(fromIndex) {
+            const total = state.players.length;
+            if (total === 0) return -1;
+
+            if (state.teamMode && state.players[fromIndex]) {
+                const currentTeam = state.players[fromIndex].team;
+                const targetTeam = currentTeam === 'A' ? 'B' : 'A';
+                const opposingAlive = state.players.some(p => p.lives > 0 && p.team === targetTeam);
+                if (opposingAlive) {
+                    for (let offset = 1; offset <= total; offset++) {
+                        const idx = (fromIndex + offset) % total;
+                        if (state.players[idx].lives > 0 && state.players[idx].team === targetTeam) {
+                            return idx;
+                        }
+                    }
+                }
+            }
+
+            for (let offset = 1; offset <= total; offset++) {
+                const idx = (fromIndex + offset) % total;
+                if (state.players[idx].lives > 0) {
+                    return idx;
+                }
+            }
+            return -1;
+        }
+
+        function getOnDeckIndex() {
+            const shooter = ensureValidShooterIndex();
+            if (!shooter) return -1;
+            return findNextAliveIndexFrom(state.currentShooterIndex);
+        }
+
+        // ---------------------------------------------------------------------
+        // 4. CORE GAMEPLAY ACTIONS
+        // ---------------------------------------------------------------------
+
+        /**
+         * HIT / NEXT TURN:
+         * - During SERVE: switches phase to RALLY, resets serveMisses = 0, advances to next alive player.
+         * - During RALLY: advances to next alive player.
+         */
+        function handleHitNextTurn() {
+            const shooter = ensureValidShooterIndex();
+            if (!shooter) return;
+
+            pushUndoSnapshot();
+            if (!state.isClockRunning) startMatchClock();
+
+            const nextIdx = findNextAliveIndexFrom(state.currentShooterIndex);
+            state.phase = 'RALLY';
+            state.serveMisses = 0;
+
+            if (nextIdx !== -1) {
+                state.currentShooterIndex = nextIdx;
+            }
+
+            resetBlitzShotClock();
+            playSoundEffect('hit');
+            triggerHaptic(22);
+            renderAll();
+        }
+
+        /**
+         * 3-STRIKE SERVE RULE:
+         * - Increments serveMisses (0 -> 1 -> 2 -> 3).
+         * - On 3rd miss: deducts 1 life from current server, resets serveMisses = 0, keeps phase = 'SERVE'.
+         * - CRITICAL: The SAME player remains the server (currentShooterIndex does NOT advance),
+         *   unless they were eliminated (0 lives), in which case advance to next alive player.
+         */
+        function handleMissedServe() {
+            const server = ensureValidShooterIndex();
+            if (!server) return;
+
+            pushUndoSnapshot();
+            if (!state.isClockRunning) startMatchClock();
+
+            state.phase = 'SERVE';
+            state.serveMisses += 1;
+
+            if (state.serveMisses >= 3) {
+                const serverIndex = state.currentShooterIndex;
+                applyLifeLoss(serverIndex, '3 Missed Serves');
+                state.serveMisses = 0;
+                state.phase = 'SERVE';
+
+                // Keep SAME server if still alive; otherwise advance to next alive player
+                if (state.players[serverIndex].lives > 0) {
+                    state.currentShooterIndex = serverIndex;
+                    showToast(`${server.name}: 3rd Strike! -1 Life (Still Serving)`);
+                } else {
+                    const nextAlive = findNextAliveIndexFrom(serverIndex);
+                    if (nextAlive !== -1) state.currentShooterIndex = nextAlive;
+                }
+
+                playSoundEffect('foul');
+                triggerHaptic([70, 40, 70]);
+            } else {
+                addEventLog(`⚠️ ${server.name} missed serve (Strike ${state.serveMisses}/3)`);
+                showToast(`${server.name}: Serve Strike ${state.serveMisses} of 3`);
+                playSoundEffect('miss');
+                triggerHaptic(35);
+            }
+
+            resetBlitzShotClock();
+            renderAll();
+        }
+
+        /**
+         * DEAD BALL:
+         * - Current shooter loses 1 life.
+         * - Phase resets to SERVE, serveMisses = 0.
+         * - CRITICAL: Next alive player after the penalized player becomes the new server!
+         */
+        function handleDeadBall() {
+            const shooter = ensureValidShooterIndex();
+            if (!shooter) return;
+
+            pushUndoSnapshot();
+            if (!state.isClockRunning) startMatchClock();
+
+            const penalizedIndex = state.currentShooterIndex;
+            applyLifeLoss(penalizedIndex, 'Dead Ball (Stopped spinning)');
+
+            const nextServerIdx = findNextAliveIndexFrom(penalizedIndex);
+            if (nextServerIdx !== -1) {
+                state.currentShooterIndex = nextServerIdx;
+            }
+            state.phase = 'SERVE';
+            state.serveMisses = 0;
+
+            resetBlitzShotClock();
+            playSoundEffect('foul');
+            triggerHaptic([60, 40, 60]);
+            renderAll();
+        }
+
+        /**
+         * POTTED ON YOU:
+         * - On-Deck player (next in line) loses 1 life.
+         * - Phase resets to SERVE, serveMisses = 0.
+         * - CRITICAL: Next alive player immediately after the penalized player (On-Deck) becomes the new server!
+         */
+        function handlePottedOnNext() {
+            const shooter = ensureValidShooterIndex();
+            if (!shooter) return;
+            const onDeckIdx = getOnDeckIndex();
+            if (onDeckIdx === -1) return;
+
+            pushUndoSnapshot();
+            if (!state.isClockRunning) startMatchClock();
+
+            applyLifeLoss(onDeckIdx, `Potted on by ${shooter.name}`);
+
+            const nextServerIdx = findNextAliveIndexFrom(onDeckIdx);
+            if (nextServerIdx !== -1) {
+                state.currentShooterIndex = nextServerIdx;
+            }
+            state.phase = 'SERVE';
+            state.serveMisses = 0;
+
+            resetBlitzShotClock();
+            playSoundEffect('foul');
+            triggerHaptic([60, 40, 60]);
+            renderAll();
+        }
+
+        /**
+         * FOUL / RAIL:
+         * - Current shooter loses 1 life.
+         * - Phase resets to SERVE, serveMisses = 0.
+         * - CRITICAL: Next alive player after the penalized shooter becomes the new server!
+         */
+        function handleFoulShortSide() {
+            const shooter = ensureValidShooterIndex();
+            if (!shooter) return;
+
+            pushUndoSnapshot();
+            if (!state.isClockRunning) startMatchClock();
+
+            const penalizedIndex = state.currentShooterIndex;
+            const reason = state.sidePocketsClosed ? 'Foul (Long rail / Closed pocket)' : 'Foul (Long rail / Off-table)';
+            applyLifeLoss(penalizedIndex, reason);
+
+            const nextServerIdx = findNextAliveIndexFrom(penalizedIndex);
+            if (nextServerIdx !== -1) {
+                state.currentShooterIndex = nextServerIdx;
+            }
+            state.phase = 'SERVE';
+            state.serveMisses = 0;
+
+            resetBlitzShotClock();
+            playSoundEffect('foul');
+            triggerHaptic([60, 40, 60]);
+            renderAll();
+        }
+
+        function manualNewServe() {
+            const shooter = ensureValidShooterIndex();
+            if (!shooter) return;
+
+            pushUndoSnapshot();
+            state.phase = 'SERVE';
+            state.serveMisses = 0;
+            resetBlitzShotClock();
+            addEventLog(`🔄 Serve reset — ${shooter.name} to serve`);
+            showToast(`Serve Reset: ${shooter.name}`);
+            playSoundEffect('whistle');
+            triggerHaptic(25);
+            renderAll();
+        }
+
+        function applyLifeLoss(playerIndex, reason) {
+            const player = state.players[playerIndex];
+            if (!player) return;
+
+            if (player.shield > 0) {
+                player.shield -= 1;
+                addEventLog(`🛡️ ${player.name}'s Shield absorbed life loss (${reason})`);
+                showToast(`🛡️ ${player.name}'s Shield Blocked Life Loss!`);
+                return;
+            }
+
+            player.lives = Math.max(0, player.lives - 1);
+            if (player.lives === 0) {
+                addEventLog(`💀 ${player.name} ELIMINATED (${reason})`);
+                showToast(`💀 ${player.name} ELIMINATED!`);
+            } else {
+                addEventLog(`❌ ${player.name} -1 life (${reason}) → ${player.lives} left`);
+                showToast(`${player.name}: -1 Life (${player.lives} left)`);
+            }
+        }
+
+        // Manual card adjustments
+        function manualAdjustLife(playerId, delta) {
+            const idx = state.players.findIndex(p => p.id === playerId);
+            if (idx === -1) return;
+
+            pushUndoSnapshot();
+            const p = state.players[idx];
+            p.lives = Math.max(0, Math.min(20, p.lives + delta));
+            if (p.lives > p.maxLives) p.maxLives = p.lives;
+
+            addEventLog(`${delta > 0 ? '➕' : '➖'} ${p.name} ${delta > 0 ? '+1' : '-1'} life (Manual) → ${p.lives}`);
+            showToast(`${p.name}: ${p.lives} ${p.lives === 1 ? 'Life' : 'Lives'}`);
+            ensureValidShooterIndex();
+            playSoundEffect(delta > 0 ? 'hit' : 'miss');
+            triggerHaptic(20);
+            renderAll();
+        }
+
+        function manualSelectShooter(playerId) {
+            const idx = state.players.findIndex(p => p.id === playerId && p.lives > 0);
+            if (idx === -1) return;
+
+            pushUndoSnapshot();
+            state.currentShooterIndex = idx;
+            state.serveMisses = 0;
+            resetBlitzShotClock();
+            addEventLog(`👉 Turn manually set to ${state.players[idx].name}`);
+            showToast(`Active: ${state.players[idx].name}`);
+            playSoundEffect('hit');
+            triggerHaptic(20);
+            renderAll();
+        }
+
+        // ---------------------------------------------------------------------
+        // 5. UNDO SYSTEM
+        // ---------------------------------------------------------------------
+        function pushUndoSnapshot() {
+            undoStack.push(JSON.stringify({
+                players: state.players,
+                currentShooterIndex: state.currentShooterIndex,
+                phase: state.phase,
+                serveMisses: state.serveMisses,
+                logs: state.logs,
+                victoryShown: state.victoryShown
+            }));
+            if (undoStack.length > 40) undoStack.shift();
+        }
+
+        function undoLastAction() {
+            if (undoStack.length === 0) return;
+            const snap = JSON.parse(undoStack.pop());
+            state.players = snap.players;
+            state.currentShooterIndex = snap.currentShooterIndex;
+            state.phase = snap.phase;
+            state.serveMisses = snap.serveMisses;
+            state.logs = snap.logs;
+            state.victoryShown = snap.victoryShown;
+            document.getElementById('victoryModal').classList.add('hidden');
+            resetBlitzShotClock();
+            playSoundEffect('hit');
+            triggerHaptic(25);
+            showToast('Undid last action');
+            renderAll();
+        }
+
+        // ---------------------------------------------------------------------
+        // 6. NOISE-RESISTANT PARTY VOICE & TABLE-SLAP ENGINE
+        // ---------------------------------------------------------------------
+        const audioEngine = {
+            active: false,
+            requireWakeWord: true,
+            clapTriggerEnabled: false, // Default OFF so normal speech never false-triggers HIT
+            clapThreshold: 0.78,       // High threshold when enabled
+            wakeArmedUntil: 0,         // Timestamp until 2-step wake word window expires
+            wakeArmTimer: null,
+            lastClapTimestamp: 0,
+            lastVoiceCmdTimestamp: 0,
+            lastProcessedFinalIndex: -1,
+            stream: null,
+            analyser: null,
+            rafId: null,
+            recognition: null
+        };
+
+        // Phonetic & ASR equivalents for "CRUD"
+        const WAKE_WORDS = [
+            'crud', 'krug', 'krud', 'crude', 'crug', 'club', 'crowd',
+            'scrub', 'grub', 'cred', 'cud', 'crook', 'cruck', 'grad',
+            'curd', 'clod', 'prod', 'brad'
+        ];
+
+        const COMMAND_DICTIONARY = {
+            hit: ['hit', 'it', 'heat', 'hid', 'hat', 'hot', 'next', 'go', 'good', 'pass', 'shot', 'shoot', 'strike', 'tap'],
+            dead: ['dead', 'dad', 'bed', 'red', 'death', 'stop', 'stopped', 'died', 'die', 'still', 'freeze'],
+            pot: ['potted', 'pot', 'part', 'pocket', 'in', 'drop', 'dropped', 'sink', 'sank', 'sunk', 'hole', 'corner', 'score'],
+            foul: ['foul', 'fall', 'four', 'for', 'out', 'off', 'rail', 'side', 'scratch', 'bad', 'penalty'],
+            miss: ['miss', 'missed', 'mess', 'mist', 'strike', 'three', 'wide', 'air', 'whiff'],
+            undo: ['undo', 'back', 'cancel', 'oops', 'mistake', 'reverse', 'wait']
+        };
+
+        function toggleAudioPanel() {
+            const hud = document.getElementById('partyAudioHud');
+            hud.classList.toggle('hidden');
+        }
+
+        function toggleAudioSettingsDrawer() {
+            const drawer = document.getElementById('audioSettingsDrawer');
+            const chev = document.getElementById('audioChevron');
+            drawer.classList.toggle('hidden');
+            chev.classList.toggle('rotate-180');
+        }
+
+        function updateWakeBadgeUI() {
+            const pill = document.getElementById('wakeWordStatusPill');
+            const now = Date.now();
+            if (!audioEngine.requireWakeWord) {
+                pill.innerText = 'DIRECT MODE';
+                pill.className = 'shrink-0 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono font-extrabold text-[10px]';
+            } else if (now < audioEngine.wakeArmedUntil) {
+                pill.innerText = 'WAKE ARMED (3.5s)';
+                pill.className = 'shrink-0 px-1.5 py-0.5 rounded bg-emerald-500 text-felt-950 font-mono font-black text-[10px] animate-pulse';
+            } else {
+                pill.innerText = 'WAKE: "CRUD ..."';
+                pill.className = 'shrink-0 px-1.5 py-0.5 rounded bg-amber-500/20 text-brass-400 border border-brass-500/40 font-mono font-extrabold text-[10px]';
+            }
+        }
+
+        function armWakeWindow() {
+            audioEngine.wakeArmedUntil = Date.now() + 3500;
+            updateWakeBadgeUI();
+            document.getElementById('voiceStatusText').innerText = '🎙️ "CRUD" heard! Say command now (Hit / Dead / Pot / Foul / Miss / Undo)...';
+            clearTimeout(audioEngine.wakeArmTimer);
+            audioEngine.wakeArmTimer = setTimeout(() => {
+                audioEngine.wakeArmedUntil = 0;
+                updateWakeBadgeUI();
+                if (audioEngine.active && audioEngine.requireWakeWord) {
+                    document.getElementById('voiceStatusText').innerText = 'Listening for "CRUD Hit / Dead / Pot / Foul / Miss"...';
+                }
+            }, 3550);
+        }
+
+        function disarmWakeWindow() {
+            audioEngine.wakeArmedUntil = 0;
+            clearTimeout(audioEngine.wakeArmTimer);
+            updateWakeBadgeUI();
+        }
+
+        function toggleWakeWordMode() {
+            audioEngine.requireWakeWord = !audioEngine.requireWakeWord;
+            disarmWakeWindow();
+            const btn = document.getElementById('wakeWordToggleBtn');
+            if (audioEngine.requireWakeWord) {
+                btn.innerText = 'ON (Safe)';
+                btn.className = 'px-2.5 py-1.5 rounded-lg bg-brass-500 text-felt-950 font-black text-[11px] btn-press';
+            } else {
+                btn.innerText = 'OFF (Direct)';
+                btn.className = 'px-2.5 py-1.5 rounded-lg bg-felt-800 text-emerald-300 border border-felt-600 font-black text-[11px] btn-press';
+            }
+            updateWakeBadgeUI();
+            if (audioEngine.active) {
+                document.getElementById('voiceStatusText').innerText = audioEngine.requireWakeWord
+                    ? 'Listening for "CRUD Hit / Dead / Pot / Foul / Miss"...'
+                    : 'Direct mode: Listening for commands without wake word...';
+            }
+            triggerHaptic(15);
+        }
+
+        function toggleClapMode() {
+            audioEngine.clapTriggerEnabled = !audioEngine.clapTriggerEnabled;
+            const btn = document.getElementById('clapToggleBtn');
+            const tag = document.getElementById('clapActiveTag');
+            if (audioEngine.clapTriggerEnabled) {
+                btn.innerText = 'ON';
+                btn.className = 'px-2.5 py-1 rounded-lg bg-emerald-600 text-felt-950 font-black text-[11px] btn-press';
+                tag.innerText = 'SLAP=HIT: ON';
+                tag.className = 'shrink-0 font-mono text-[10px] font-bold text-emerald-400';
+                showToast('Table-Slap / Clap Trigger ON');
+            } else {
+                btn.innerText = 'OFF';
+                btn.className = 'px-2.5 py-1 rounded-lg bg-felt-800 text-slate-400 font-black text-[11px] btn-press';
+                tag.innerText = 'SLAP=HIT: OFF';
+                tag.className = 'shrink-0 font-mono text-[10px] font-bold text-slate-500';
+                showToast('Table-Slap / Clap Trigger OFF');
+            }
+            triggerHaptic(15);
+        }
+
+        function updateClapSensitivity(val) {
+            const num = parseInt(val, 10);
+            audioEngine.clapThreshold = num / 100;
+            document.getElementById('clapSensitivityLabel').innerText = `${num}%`;
+            document.getElementById('clapThresholdMarker').style.left = `${num}%`;
+        }
+
+        async function togglePartyAudioEngine() {
+            if (audioEngine.active) {
+                stopPartyAudioEngine();
+                return;
+            }
+
+            try {
+                // 1. Start Microphone Stream with Echo Cancellation & Noise Suppression
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    audioEngine.stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+                    initAudioContext();
+                    const source = audioCtx.createMediaStreamSource(audioEngine.stream);
+                    audioEngine.analyser = audioCtx.createAnalyser();
+                    audioEngine.analyser.fftSize = 512;
+                    audioEngine.analyser.smoothingTimeConstant = 0.25;
+                    source.connect(audioEngine.analyser);
+                    startAcousticSpikeLoop();
+                }
+
+                // 2. Start Multi-Hypothesis Web Speech Recognition
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    audioEngine.lastProcessedFinalIndex = -1;
+                    audioEngine.recognition = new SpeechRecognition();
+                    audioEngine.recognition.continuous = true;
+                    audioEngine.recognition.interimResults = true;
+                    audioEngine.recognition.maxAlternatives = 5;
+                    audioEngine.recognition.lang = 'en-US';
+
+                    audioEngine.recognition.onresult = (event) => {
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const result = event.results[i];
+                            const hypotheses = [];
+                            for (let k = 0; k < result.length; k++) {
+                                hypotheses.push(result[k].transcript.trim().toLowerCase());
+                            }
+                            if (hypotheses.length > 0) {
+                                document.getElementById('voiceStatusText').innerText = `Heard: "${hypotheses[0]}"`;
+                                evaluateSpeechHypotheses(hypotheses, result.isFinal, i);
+                            }
+                        }
+                    };
+
+                    audioEngine.recognition.onerror = (e) => {
+                        if (e.error === 'not-allowed') {
+                            showToast('Microphone permission denied');
+                            stopPartyAudioEngine();
+                        }
+                    };
+
+                    audioEngine.recognition.onend = () => {
+                        if (audioEngine.active && audioEngine.recognition) {
+                            audioEngine.lastProcessedFinalIndex = -1;
+                            try { audioEngine.recognition.start(); } catch (_) {}
+                        }
+                    };
+
+                    audioEngine.recognition.start();
+                } else {
+                    document.getElementById('voiceStatusText').innerText = 'Speech API unavailable on this browser';
+                }
+
+                audioEngine.active = true;
+                disarmWakeWindow();
+                updateAudioEngineUI(true);
+                playSoundEffect('whistle');
+                showToast('Party Voice Active — Say "Crud <Command>"');
+            } catch (err) {
+                console.error(err);
+                showToast('Mic access failed — ensure HTTPS & permission');
+                stopPartyAudioEngine();
+            }
+        }
+
+        function stopPartyAudioEngine() {
+            audioEngine.active = false;
+            disarmWakeWindow();
+            if (audioEngine.rafId) {
+                cancelAnimationFrame(audioEngine.rafId);
+                audioEngine.rafId = null;
+            }
+            if (audioEngine.recognition) {
+                try { audioEngine.recognition.stop(); } catch (_) {}
+                audioEngine.recognition = null;
+            }
+            if (audioEngine.stream) {
+                audioEngine.stream.getTracks().forEach(t => t.stop());
+                audioEngine.stream = null;
+            }
+            document.getElementById('audioLevelBar').style.width = '0%';
+            updateAudioEngineUI(false);
+            showToast('Party Mic Stopped');
+        }
+
+        function updateAudioEngineUI(isOn) {
+            const btn = document.getElementById('masterAudioToggleBtn');
+            const btnText = document.getElementById('masterAudioBtnText');
+            const dot = document.getElementById('micLiveDot');
+            const headerDot = document.getElementById('headerMicDot');
+            const headerSvg = document.getElementById('headerMicSvg');
+
+            if (isOn) {
+                btn.className = 'px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center gap-1.5 shadow btn-press';
+                btnText.innerText = 'Stop Party Mic';
+                dot.className = 'w-2 h-2 rounded-full bg-white animate-ping';
+                headerDot.classList.remove('hidden');
+                headerSvg.classList.replace('text-slate-400', 'text-emerald-400');
+                document.getElementById('voiceStatusText').innerText = audioEngine.requireWakeWord
+                    ? 'Listening for "CRUD Hit / Dead / Pot / Foul / Miss"...'
+                    : 'Direct mode: Listening for commands...';
+            } else {
+                btn.className = 'px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-felt-950 font-black text-xs flex items-center gap-1.5 shadow btn-press';
+                btnText.innerText = 'Enable Party Voice';
+                dot.className = 'w-2 h-2 rounded-full bg-felt-950';
+                headerDot.classList.add('hidden');
+                headerSvg.classList.replace('text-emerald-400', 'text-slate-400');
+                document.getElementById('voiceStatusText').innerText = 'Tap button to use hands-free Voice ("Crud Hit", etc.)';
+            }
+        }
+
+        /**
+         * Real-time acoustic peak detector (only triggers when clapTriggerEnabled is explicitly ON).
+         */
+        function startAcousticSpikeLoop() {
+            if (!audioEngine.analyser) return;
+            const bufferLength = audioEngine.analyser.fftSize;
+            const dataArray = new Uint8Array(bufferLength);
+            const levelBar = document.getElementById('audioLevelBar');
+
+            let previousEnergy = 0;
+
+            const tick = () => {
+                if (!audioEngine.active || !audioEngine.analyser) return;
+
+                audioEngine.analyser.getByteTimeDomainData(dataArray);
+                let peak = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    const normalized = Math.abs((dataArray[i] - 128) / 128);
+                    if (normalized > peak) peak = normalized;
+                }
+
+                const pct = Math.min(100, Math.round(peak * 115));
+                levelBar.style.width = `${pct}%`;
+
+                const now = Date.now();
+                const isSharpTransient = (peak - previousEnergy) > 0.24;
+                if (
+                    audioEngine.clapTriggerEnabled &&
+                    peak >= audioEngine.clapThreshold &&
+                    isSharpTransient &&
+                    (now - audioEngine.lastClapTimestamp) > 1000 &&
+                    (now - audioEngine.lastVoiceCmdTimestamp) > 1000
+                ) {
+                    audioEngine.lastClapTimestamp = now;
+                    document.getElementById('voiceStatusText').innerText = '👏 Table-Slap / Clap Detected → HIT!';
+                    handleHitNextTurn();
+                }
+
+                previousEnergy = peak * 0.7;
+                audioEngine.rafId = requestAnimationFrame(tick);
+            };
+
+            audioEngine.rafId = requestAnimationFrame(tick);
+        }
+
+        /**
+         * Strict Wake-Word Speech Evaluator:
+         * - When `requireWakeWord` is true:
+         *   1) Either the utterance contains a WAKE_WORD followed by a COMMAND word in the SAME utterance, OR
+         *   2) A 2-step wake window was armed within the last 3.5s by saying "Crud" alone, and this utterance has a COMMAND word.
+         *   3) Interim hypotheses are NEVER evaluated unless BOTH wake word + command word are explicitly present after the wake word.
+         */
+        function evaluateSpeechHypotheses(hypotheses, isFinal, resultIndex) {
+            const now = Date.now();
+            if (isFinal && resultIndex <= audioEngine.lastProcessedFinalIndex) return;
+            if (now - audioEngine.lastVoiceCmdTimestamp < 1200) return;
+
+            const isWakeArmed = audioEngine.requireWakeWord && (now < audioEngine.wakeArmedUntil);
+
+            for (const rawTranscript of hypotheses) {
+                const tokens = rawTranscript.replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+                if (tokens.length === 0) continue;
+
+                let commandTokens = [];
+
+                if (!audioEngine.requireWakeWord) {
+                    // Direct mode (wake word disabled by user)
+                    commandTokens = tokens;
+                } else {
+                    const wakeIdx = tokens.findIndex(tok => WAKE_WORDS.includes(tok));
+
+                    if (wakeIdx !== -1) {
+                        // Wake word is present in this utterance! Only inspect tokens strictly AFTER the wake word.
+                        commandTokens = tokens.slice(wakeIdx + 1);
+
+                        // If user said "Crud" by itself (no trailing command word yet) on a final result, arm the 3.5s window.
+                        if (commandTokens.length === 0) {
+                            if (isFinal) {
+                                audioEngine.lastProcessedFinalIndex = resultIndex;
+                                armWakeWindow();
+                            }
+                            return;
+                        }
+                    } else if (isWakeArmed) {
+                        // 2-step wake window is currently armed ("Crud" was just said < 3.5s ago)
+                        commandTokens = tokens;
+                    } else {
+                        // Strict enforcement: No wake word and not armed -> completely ignore!
+                        continue;
+                    }
+                }
+
+                // Match command keyword strictly from `commandTokens`
+                for (const [action, aliases] of Object.entries(COMMAND_DICTIONARY)) {
+                    const matched = commandTokens.some(tok => aliases.includes(tok));
+                    if (matched) {
+                        audioEngine.lastVoiceCmdTimestamp = now;
+                        audioEngine.lastClapTimestamp = now;
+                        if (isFinal) audioEngine.lastProcessedFinalIndex = resultIndex;
+                        disarmWakeWindow();
+                        executeVoiceAction(action, rawTranscript);
+                        return;
+                    }
+                }
+            }
+
+            if (isFinal) {
+                audioEngine.lastProcessedFinalIndex = resultIndex;
+            }
+        }
+
+        function executeVoiceAction(action, heardPhrase) {
+            document.getElementById('voiceStatusText').innerText = `🎙️ Executed [${action.toUpperCase()}] from "${heardPhrase}"`;
+            switch (action) {
+                case 'hit':
+                    handleHitNextTurn();
+                    break;
+                case 'dead':
+                    handleDeadBall();
+                    break;
+                case 'pot':
+                    handlePottedOnNext();
+                    break;
+                case 'foul':
+                    handleFoulShortSide();
+                    break;
+                case 'miss':
+                    handleMissedServe();
+                    break;
+                case 'undo':
+                    undoLastAction();
+                    break;
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // 7. WEB AUDIO SFX & SCREEN WAKE LOCK
+        // ---------------------------------------------------------------------
+        let audioCtx = null;
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (AC) audioCtx = new AC();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSoundEffect(type) {
+            if (!sfxEnabled) return;
+            try {
+                initAudioContext();
+                if (!audioCtx) return;
+
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'hit') {
+                    // Crisp billiard ball clack
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(680, now);
+                    osc.frequency.exponentialRampToValueAtTime(1150, now + 0.06);
+                    gain.gain.setValueAtTime(0.28, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+                    osc.start(now);
+                    osc.stop(now + 0.07);
+                } else if (type === 'miss') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(240, now);
+                    osc.frequency.linearRampToValueAtTime(175, now + 0.16);
+                    gain.gain.setValueAtTime(0.22, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+                    osc.start(now);
+                    osc.stop(now + 0.17);
+                } else if (type === 'foul') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(165, now);
+                    osc.frequency.linearRampToValueAtTime(92, now + 0.34);
+                    gain.gain.setValueAtTime(0.32, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+                    osc.start(now);
+                    osc.stop(now + 0.36);
+                } else if (type === 'whistle') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(2750, now);
+                    osc.frequency.setValueAtTime(3100, now + 0.06);
+                    osc.frequency.setValueAtTime(2750, now + 0.12);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+                    osc.start(now);
+                    osc.stop(now + 0.24);
+                }
+            } catch (_) {}
+        }
+
+        function toggleSfx() {
+            sfxEnabled = !sfxEnabled;
+            document.getElementById('sfxOnIcon').classList.toggle('hidden', !sfxEnabled);
+            document.getElementById('sfxOffIcon').classList.toggle('hidden', sfxEnabled);
+            if (sfxEnabled) playSoundEffect('hit');
+            showToast(sfxEnabled ? 'Sound Effects ON' : 'Sound Effects MUTED');
+        }
+
+        async function toggleWakeLock() {
+            const btn = document.getElementById('wakeLockBtn');
+            if (!('wakeLock' in navigator)) {
+                showToast('Wake Lock not supported in this browser');
+                return;
+            }
+            try {
+                if (wakeLockSentinel) {
+                    await wakeLockSentinel.release();
+                    wakeLockSentinel = null;
+                    btn.classList.remove('text-brass-400', 'border-brass-500');
+                    btn.classList.add('text-slate-400');
+                    showToast('Screen Auto-Sleep Restored');
+                } else {
+                    wakeLockSentinel = await navigator.wakeLock.request('screen');
+                    btn.classList.remove('text-slate-400');
+                    btn.classList.add('text-brass-400', 'border-brass-500');
+                    showToast('Screen Kept Awake at Table');
+                }
+            } catch (_) {
+                showToast('Could not lock screen wake');
+            }
+        }
+
+        function triggerHaptic(pattern) {
+            if (navigator.vibrate) {
+                try { navigator.vibrate(pattern); } catch (_) {}
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // 8. MATCH CLOCK & BLITZ SHOT CLOCK
+        // ---------------------------------------------------------------------
+        function toggleMatchClock() {
+            if (state.isClockRunning) {
+                stopMatchClock();
+                showToast('Match Clock Paused');
+            } else {
+                startMatchClock();
+                showToast('Match Clock Running');
+            }
+        }
+
+        function startMatchClock() {
+            if (state.isClockRunning) return;
+            state.isClockRunning = true;
+            document.getElementById('clockPlayIndicator').className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+            clockInterval = setInterval(() => {
+                state.matchSeconds += 1;
+                document.getElementById('matchClockText').innerText = formatSeconds(state.matchSeconds);
+            }, 1000);
+
+            if (state.modifier === 'blitz') startBlitzShotClock();
+        }
+
+        function stopMatchClock() {
+            state.isClockRunning = false;
+            clearInterval(clockInterval);
+            clearInterval(blitzInterval);
+            document.getElementById('clockPlayIndicator').className = 'w-2 h-2 rounded-full bg-brass-400';
+        }
+
+        function startBlitzShotClock() {
+            clearInterval(blitzInterval);
+            if (state.modifier !== 'blitz') return;
+            blitzInterval = setInterval(() => {
+                if (!state.isClockRunning) return;
+                state.blitzTimeLeft = Math.max(0, +(state.blitzTimeLeft - 0.1).toFixed(1));
+                const pill = document.getElementById('blitzClockPill');
+                pill.innerText = `${state.blitzTimeLeft.toFixed(1)}s`;
+                if (state.blitzTimeLeft <= 3.0 && state.blitzTimeLeft > 0) {
+                    pill.classList.add('animate-pulse');
+                } else {
+                    pill.classList.remove('animate-pulse');
+                }
+                if (state.blitzTimeLeft === 0) {
+                    clearInterval(blitzInterval);
+                    playSoundEffect('foul');
+                    showToast('⏰ BLITZ SHOT CLOCK EXPIRED!');
+                }
+            }, 100);
+        }
+
+        function resetBlitzShotClock() {
+            state.blitzTimeLeft = 12.0;
+            const pill = document.getElementById('blitzClockPill');
+            if (state.modifier === 'blitz') {
+                pill.classList.remove('hidden', 'animate-pulse');
+                pill.innerText = '12.0s';
+                if (state.isClockRunning) startBlitzShotClock();
+            } else {
+                pill.classList.add('hidden');
+            }
+        }
+
+        function formatSeconds(sec) {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        // ---------------------------------------------------------------------
+        // 9. SETUP MODAL, SHUFFLE, MODIFIERS & ROSTER MANAGEMENT
+        // ---------------------------------------------------------------------
+        function openSetupModal() {
+            renderSetupModal();
+            document.getElementById('setupModal').classList.remove('hidden');
+        }
+
+        function closeSetupModal() {
+            document.getElementById('setupModal').classList.add('hidden');
+            renderAll();
+        }
+
+        function adjustStartingLives(delta) {
+            state.startingLives = Math.max(1, Math.min(20, state.startingLives + delta));
+            document.getElementById('setupLivesDisplay').innerText = state.startingLives;
+            triggerHaptic(15);
+        }
+
+        function setTeamMode(enabled) {
+            state.teamMode = enabled;
+            state.players.forEach((p, idx) => {
+                if (!p.team) p.team = idx % 2 === 0 ? 'A' : 'B';
+            });
+            renderSetupModal();
+            triggerHaptic(15);
+        }
+
+        function togglePlayerTeam(playerId) {
+            const p = state.players.find(item => item.id === playerId);
+            if (!p) return;
+            p.team = p.team === 'A' ? 'B' : 'A';
+            renderSetupModal();
+            triggerHaptic(15);
+        }
+
+        function selectModifier(modKey) {
+            state.modifier = modKey;
+            if (modKey === 'suddenDeath') {
+                state.startingLives = 1;
+            }
+            renderSetupModal();
+            triggerHaptic(15);
+        }
+
+        function toggleCombatRule() {
+            state.combatRules = !state.combatRules;
+            renderSetupModal();
+            triggerHaptic(15);
+        }
+
+        function toggleSidePocketRule() {
+            state.sidePocketsClosed = !state.sidePocketsClosed;
+            renderSetupModal();
+            triggerHaptic(15);
+        }
+
+        function submitNewPlayer(e) {
+            e.preventDefault();
+            const input = document.getElementById('playerNameInput');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const lives = state.modifier === 'suddenDeath' ? 1 : state.startingLives;
+            state.players.push({
+                id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+                name,
+                lives,
+                maxLives: lives,
+                team: state.players.length % 2 === 0 ? 'A' : 'B',
+                shield: state.modifier === 'shieldLife' ? 1 : 0
+            });
+            input.value = '';
+            renderSetupModal();
+            triggerHaptic(15);
+        }
+
+        function addSampleFour() {
+            const names = ['Mike', 'Sarah', 'Dave', 'Elena'];
+            const lives = state.modifier === 'suddenDeath' ? 1 : state.startingLives;
+            names.forEach((n, i) => {
+                state.players.push({
+                    id: 'p_' + Date.now() + '_' + i,
+                    name: n,
+                    lives,
+                    maxLives: lives,
+                    team: (state.players.length % 2 === 0) ? 'A' : 'B',
+                    shield: state.modifier === 'shieldLife' ? 1 : 0
+                });
+            });
+            renderSetupModal();
+            triggerHaptic(20);
+        }
+
+        function shufflePlayerOrder() {
+            for (let i = state.players.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [state.players[i], state.players[j]] = [state.players[j], state.players[i]];
+            }
+            renderSetupModal();
+            showToast('🔀 Table Order Shuffled!');
+            triggerHaptic(30);
+        }
+
+        function moveRosterItem(index, dir) {
+            const target = index + dir;
+            if (target < 0 || target >= state.players.length) return;
+            const tmp = state.players[index];
+            state.players[index] = state.players[target];
+            state.players[target] = tmp;
+            renderSetupModal();
+            triggerHaptic(15);
+        }
+
+        function removeRosterItem(playerId) {
+            state.players = state.players.filter(p => p.id !== playerId);
+            renderSetupModal();
+            triggerHaptic(15);
+        }
+
+        function startNewMatch() {
+            if (state.players.length < 2) {
+                showToast('Add at least 2 players to start!');
+                return;
+            }
+
+            const lives = state.modifier === 'suddenDeath' ? 1 : state.startingLives;
+            state.players.forEach(p => {
+                p.lives = lives;
+                p.maxLives = lives;
+                p.shield = state.modifier === 'shieldLife' ? 1 : 0;
+            });
+
+            state.currentShooterIndex = 0;
+            state.phase = 'SERVE';
+            state.serveMisses = 0;
+            state.logs = [];
+            state.victoryShown = false;
+            undoStack = [];
+
+            stopMatchClock();
+            state.matchSeconds = 0;
+            document.getElementById('matchClockText').innerText = '00:00';
+            resetBlitzShotClock();
+            startMatchClock();
+
+            addEventLog(`🎱 Match started (${state.players.length} players, ${lives} lives, ${getModifierLabel(state.modifier)})`);
+            playSoundEffect('whistle');
+            triggerHaptic(40);
+            closeSetupModal();
+        }
+
+        function renderSetupModal() {
+            document.getElementById('setupLivesDisplay').innerText = state.startingLives;
+            document.getElementById('setupPlayerCountText').innerText = state.players.length;
+
+            const ffaBtn = document.getElementById('formatFfaBtn');
+            const teamBtn = document.getElementById('formatTeamBtn');
+            if (state.teamMode) {
+                teamBtn.className = 'py-2 rounded-lg text-xs font-black bg-brass-500 text-felt-950';
+                ffaBtn.className = 'py-2 rounded-lg text-xs font-black text-slate-300';
+            } else {
+                ffaBtn.className = 'py-2 rounded-lg text-xs font-black bg-brass-500 text-felt-950';
+                teamBtn.className = 'py-2 rounded-lg text-xs font-black text-slate-300';
+            }
+
+            ['standard', 'suddenDeath', 'shieldLife', 'blitz', 'doubleBall'].forEach(key => {
+                const el = document.getElementById(`modBtn_${key}`);
+                if (!el) return;
+                el.className = state.modifier === key
+                    ? 'p-2.5 rounded-xl border text-left btn-press bg-felt-950 border-brass-400 text-white shadow-md'
+                    : 'p-2.5 rounded-xl border text-left btn-press bg-felt-950 border-felt-700 text-slate-300';
+            });
+
+            document.getElementById('setupContactTitle').innerText = state.combatRules ? 'Combat Crud' : "Gentleman's Crud";
+            document.getElementById('setupContactSub').innerText = state.combatRules ? 'Body-blocking & screening legal' : 'No physical body blocking';
+
+            document.getElementById('setupPocketTitle').innerText = state.sidePocketsClosed ? 'Side Pockets Closed' : 'All Pockets Open';
+            document.getElementById('setupPocketSub').innerText = state.sidePocketsClosed ? 'Side pocket = Shooter foul' : 'Any pocket penalizes On Deck';
+
+            const container = document.getElementById('setupRosterContainer');
+            if (state.players.length === 0) {
+                container.innerHTML = `<div class="text-center py-4 text-xs text-slate-500 italic">No players added yet.</div>`;
+                return;
+            }
+
+            container.innerHTML = state.players.map((p, idx) => {
+                const teamPill = state.teamMode
+                    ? `<button type="button" onclick="togglePlayerTeam('${p.id}')" class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${p.team === 'A' ? 'bg-sky-600 text-white' : 'bg-amber-500 text-felt-950'}">Team ${p.team}</button>`
+                    : '';
+
+                return `
+                    <div class="flex items-center justify-between gap-2 bg-felt-950 border border-felt-800 px-3 py-2 rounded-xl">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-5 h-5 rounded bg-felt-800 text-brass-400 font-mono font-black text-[11px] flex items-center justify-center shrink-0">${idx + 1}</span>
+                            <span class="font-bold text-xs text-white truncate">${escapeHtml(p.name)}</span>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                            ${teamPill}
+                            <button type="button" onclick="moveRosterItem(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} class="w-7 h-7 rounded bg-felt-900 hover:bg-felt-800 disabled:opacity-30 text-slate-200 text-xs">↑</button>
+                            <button type="button" onclick="moveRosterItem(${idx}, 1)" ${idx === state.players.length - 1 ? 'disabled' : ''} class="w-7 h-7 rounded bg-felt-900 hover:bg-felt-800 disabled:opacity-30 text-slate-200 text-xs">↓</button>
+                            <button type="button" onclick="removeRosterItem('${p.id}')" class="w-7 h-7 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-400 text-xs">✕</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ---------------------------------------------------------------------
+        // 10. LOG, ABOUT & VICTORY MODALS
+        // ---------------------------------------------------------------------
+        function openLogModal() {
+            renderEventLog();
+            document.getElementById('logModal').classList.remove('hidden');
+        }
+        function closeLogModal() {
+            document.getElementById('logModal').classList.add('hidden');
+        }
+        function openAboutModal() {
+            document.getElementById('aboutModal').classList.remove('hidden');
+        }
+        function closeAboutModal() {
+            document.getElementById('aboutModal').classList.add('hidden');
+        }
+        function closeVictoryModal() {
+            document.getElementById('victoryModal').classList.add('hidden');
+        }
+
+        function addEventLog(msg) {
+            state.logs.unshift({ time: formatSeconds(state.matchSeconds), msg });
+            renderEventLog();
+        }
+
+        function clearEventLog() {
+            state.logs = [];
+            renderEventLog();
+        }
+
+        function renderEventLog() {
+            const badge = document.getElementById('logCountBadge');
+            if (state.logs.length > 0) {
+                badge.innerText = state.logs.length > 99 ? '99+' : state.logs.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            const list = document.getElementById('eventLogContainer');
+            if (state.logs.length === 0) {
+                list.innerHTML = `<div class="text-slate-500 italic text-center py-8">No referee calls yet.</div>`;
+                return;
+            }
+            list.innerHTML = state.logs.map(item => `
+                <div class="p-2.5 rounded-xl bg-felt-900 border border-felt-800 flex items-start gap-2">
+                    <span class="text-brass-400 font-bold shrink-0">[${item.time}]</span>
+                    <span class="text-slate-200">${escapeHtml(item.msg)}</span>
+                </div>
+            `).join('');
+        }
+
+        function checkVictory() {
+            if (state.victoryShown || state.players.length < 2) return;
+            const alive = getAlivePlayers();
+
+            if (state.teamMode) {
+                const aliveA = alive.filter(p => p.team === 'A');
+                const aliveB = alive.filter(p => p.team === 'B');
+                if (aliveA.length > 0 && aliveB.length === 0) {
+                    showVictory('TEAM A WINS!', `${aliveA.map(p => p.name).join(', ')} survived!`);
+                } else if (aliveB.length > 0 && aliveA.length === 0) {
+                    showVictory('TEAM B WINS!', `${aliveB.map(p => p.name).join(', ')} survived!`);
+                }
+            } else if (alive.length === 1) {
+                showVictory(`${alive[0].name} WINS!`, 'Last player standing at the table!');
+            }
+        }
+
+        function showVictory(title, subtitle) {
+            state.victoryShown = true;
+            stopMatchClock();
+            document.getElementById('victoryWinnerName').innerText = title;
+            document.getElementById('victorySubtext').innerText = subtitle;
+            document.getElementById('victoryDurationStat').innerText = formatSeconds(state.matchSeconds);
+            document.getElementById('victoryCallsStat').innerText = state.logs.length;
+            document.getElementById('victoryModal').classList.remove('hidden');
+            playSoundEffect('whistle');
+            triggerHaptic([100, 50, 100, 50, 160]);
+        }
+
+        // ---------------------------------------------------------------------
+        // 11. MASTER UI RENDERER
+        // ---------------------------------------------------------------------
+        function getModifierLabel(key) {
+            return {
+                standard: 'Standard',
+                suddenDeath: 'Sudden Death',
+                shieldLife: 'Shield Life',
+                blitz: 'Speed Blitz',
+                doubleBall: 'Double Ball'
+            }[key] || 'Standard';
+        }
+
+        function renderAll() {
+            // Header Badges
+            document.getElementById('headerModBadge').innerText = getModifierLabel(state.modifier);
+            document.getElementById('headerRulesText').innerText =
+                `${state.combatRules ? 'Combat' : "Gentleman's"} • ${state.sidePocketsClosed ? 'Sides Closed' : 'Sides Open'}`;
+
+            // Phase Badge & Role Text
+            const phaseBadge = document.getElementById('phaseBadge');
+            const roleLabel = document.getElementById('shootingRoleLabel');
+            const hitSub = document.getElementById('hitBtnSubtext');
+
+            if (state.phase === 'RALLY') {
+                phaseBadge.innerText = 'LIVE RALLY';
+                phaseBadge.className = 'px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-emerald-500 text-felt-950';
+                roleLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> SHOOTING NOW`;
+                hitSub.innerText = 'Object ball struck — Advance to On Deck';
+            } else {
+                phaseBadge.innerText = 'SERVE PHASE';
+                phaseBadge.className = 'px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-brass-500 text-felt-950';
+                roleLabel.innerHTML = `<span class="w-2 h-2 rounded-full bg-brass-400 animate-ping"></span> SERVING NOW`;
+                hitSub.innerText = 'Good serve hit — Start live rally & pass turn';
+            }
+
+            // Serve Strike Pill
+            const strikePill = document.getElementById('serveStrikePill');
+            strikePill.innerText = `STRIKE ${state.serveMisses} / 3`;
+            strikePill.className = state.serveMisses > 0
+                ? 'text-[10px] font-black px-2 py-0.5 rounded bg-amber-500 text-felt-950'
+                : 'text-[10px] font-black px-2 py-0.5 rounded bg-sky-900 text-sky-200 border border-sky-500';
+
+            // Active Shooter & On Deck Spotlight
+            const shooter = ensureValidShooterIndex();
+            const onDeckIdx = getOnDeckIndex();
+            const defender = onDeckIdx !== -1 ? state.players[onDeckIdx] : null;
+
+            const shooterNameEl = document.getElementById('activeShooterName');
+            const shooterLivesEl = document.getElementById('activeShooterLivesBadge');
+            const shooterPipsEl = document.getElementById('activeShooterPips');
+            const shooterTeamEl = document.getElementById('activeShooterTeamPill');
+
+            if (shooter) {
+                shooterNameEl.innerText = shooter.name;
+                const shieldSuffix = shooter.shield > 0 ? ` + 🛡️${shooter.shield}` : '';
+                shooterLivesEl.innerText = `${shooter.lives} ${shooter.lives === 1 ? 'Life' : 'Lives'}${shieldSuffix}`;
+                shooterPipsEl.innerHTML = buildLifePipsHtml(shooter.lives, shooter.maxLives, 'w-4 h-4 text-[9px]');
+                if (state.teamMode) {
+                    shooterTeamEl.innerText = `Team ${shooter.team}`;
+                    shooterTeamEl.className = `shrink-0 px-2 py-0.5 rounded text-[10px] font-black uppercase ${shooter.team === 'A' ? 'bg-sky-600 text-white' : 'bg-amber-500 text-felt-950'}`;
+                    shooterTeamEl.classList.remove('hidden');
+                } else {
+                    shooterTeamEl.classList.add('hidden');
+                }
+            } else {
+                shooterNameEl.innerText = '--';
+                shooterLivesEl.innerText = '0 Lives';
+                shooterPipsEl.innerHTML = '';
+                shooterTeamEl.classList.add('hidden');
+            }
+
+            const defNameEl = document.getElementById('nextDefenderName');
+            const defLivesEl = document.getElementById('nextDefenderLivesBadge');
+            const defTeamEl = document.getElementById('nextDefenderTeamPill');
+
+            if (defender && defender.id !== shooter?.id) {
+                defNameEl.innerText = defender.name;
+                defLivesEl.innerText = `${defender.lives} ${defender.lives === 1 ? 'Life' : 'Lives'}`;
+                if (state.teamMode) {
+                    defTeamEl.innerText = `Team ${defender.team}`;
+                    defTeamEl.className = `shrink-0 px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${defender.team === 'A' ? 'bg-sky-600 text-white' : 'bg-amber-500 text-felt-950'}`;
+                    defTeamEl.classList.remove('hidden');
+                } else {
+                    defTeamEl.classList.add('hidden');
+                }
+            } else {
+                defNameEl.innerText = '--';
+                defLivesEl.innerText = '';
+                defTeamEl.classList.add('hidden');
+            }
+
+            // Alive Summary
+            const alivePlayers = getAlivePlayers();
+            document.getElementById('aliveCountBadge').innerText = `${alivePlayers.length} of ${state.players.length} Alive`;
+
+            // Player Cards Grid
+            const grid = document.getElementById('playerCardsGrid');
+            grid.innerHTML = state.players.map((p, idx) => {
+                const isAlive = p.lives > 0;
+                const isShooter = shooter && p.id === shooter.id;
+                const isOnDeck = defender && p.id === defender.id && isAlive;
+
+                let cardStyle = 'border-felt-800 bg-felt-900/75';
+                if (!isAlive) cardStyle = 'border-rose-950 bg-black/45 opacity-60';
+                else if (isShooter) cardStyle = 'border-brass-400 bg-felt-900 shadow-lg';
+                else if (isOnDeck) cardStyle = 'border-sky-500/75 bg-felt-900/95';
+
+                const statusTag = !isAlive
+                    ? `<span class="px-1.5 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800 text-[9px] font-black uppercase">OUT</span>`
+                    : isShooter
+                        ? `<span class="px-1.5 py-0.5 rounded bg-brass-500 text-felt-950 text-[9px] font-black uppercase">${state.phase === 'SERVE' ? 'SERVING' : 'SHOOTING'}</span>`
+                        : isOnDeck
+                            ? `<span class="px-1.5 py-0.5 rounded bg-sky-900 text-sky-200 border border-sky-600 text-[9px] font-black uppercase">ON DECK</span>`
+                            : '';
+
+                const teamTag = state.teamMode
+                    ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${p.team === 'A' ? 'bg-sky-700 text-white' : 'bg-amber-600 text-felt-950'}">T-${p.team}</span>`
+                    : '';
+
+                const shieldTag = p.shield > 0
+                    ? `<span class="px-1.5 py-0.5 rounded bg-blue-900/90 text-blue-200 text-[9px] font-bold">🛡️${p.shield}</span>`
+                    : '';
+
+                return `
+                    <div class="rounded-xl border-2 ${cardStyle} p-3 flex flex-col justify-between gap-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-1.5 min-w-0">
+                                <span class="text-[10px] font-mono font-bold text-slate-500">#${idx + 1}</span>
+                                ${teamTag}
+                                <span class="font-extrabold text-sm ${isAlive ? 'text-white' : 'text-slate-500 line-through'} truncate">${escapeHtml(p.name)}</span>
+                                ${shieldTag}
+                            </div>
+                            <div class="shrink-0">${statusTag}</div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-1 flex-wrap">
+                                ${buildLifePipsHtml(p.lives, p.maxLives, 'w-3.5 h-3.5 text-[8px]')}
+                            </div>
+                            <span class="text-xs font-mono font-bold ${isAlive ? 'text-brass-400' : 'text-slate-600'}">${p.lives}/${p.maxLives}</span>
+                        </div>
+
+                        <div class="flex items-center gap-1.5 pt-1.5 border-t border-felt-800/80">
+                            <button onclick="manualAdjustLife('${p.id}', -1)" ${!isAlive ? 'disabled' : ''} class="px-2.5 py-1 rounded-lg bg-rose-950 hover:bg-rose-900 disabled:opacity-30 text-rose-300 border border-rose-800/60 text-xs font-black btn-press">-1</button>
+                            <button onclick="manualAdjustLife('${p.id}', 1)" class="px-2.5 py-1 rounded-lg bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-xs font-black btn-press">+1</button>
+                            <button onclick="manualSelectShooter('${p.id}')" ${!isAlive || isShooter ? 'disabled' : ''} class="ml-auto px-2.5 py-1 rounded-lg bg-felt-800 hover:bg-felt-700 disabled:opacity-35 text-slate-200 border border-felt-600 text-[11px] font-extrabold btn-press">
+                                Make Server
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('undoBtn').disabled = undoStack.length === 0;
+            renderEventLog();
+            checkVictory();
+        }
+
+        function buildLifePipsHtml(lives, maxLives, sizeClass) {
+            const total = Math.max(lives, maxLives);
+            let out = '';
+            for (let i = 1; i <= total; i++) {
+                if (i <= lives) {
+                    out += `<span class="${sizeClass} rounded-full bg-gradient-to-br from-brass-400 to-brass-600 text-felt-950 font-black flex items-center justify-center shadow-xs">${i}</span>`;
+                } else {
+                    out += `<span class="${sizeClass} rounded-full bg-felt-950 border border-felt-800 text-slate-600 font-bold flex items-center justify-center">×</span>`;
+                }
+            }
+            return out;
+        }
+
+        let toastTimer = null;
+        function showToast(text) {
+            const container = document.getElementById('toastContainer');
+            document.getElementById('toastMessage').innerText = text;
+            container.classList.remove('opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => container.classList.add('opacity-0'), 2000);
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>
